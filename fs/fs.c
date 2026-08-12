@@ -1,5 +1,12 @@
 #include "../include/fs.h"
 
+/*
+TanjaOS [Reworked] Project
+File: fs.c
+Created: MSK-Kernel
+Modified By: MSK-Kerenle (Note for contrybutors when you modifie this file put your github name here)
+*/
+
 static void strcpy_safe(char* d, const char* s, int max) {
     if (!d || !s) return;
     int i;

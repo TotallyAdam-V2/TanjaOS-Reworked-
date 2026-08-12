@@ -1,6 +1,13 @@
 #ifndef ATA_H
 #define ATA_H
 
+/*
+TanjaOS [Reworked] Project
+File: ata.h
+Created: MSK-Kernel
+Modified By: MSK-Kerenle (Note for contrybutors when you modifie this file put your github name here)
+*/
+
 #include <stdint.h>
 
 // ATA I/O Ports (Primary IDE Channel)

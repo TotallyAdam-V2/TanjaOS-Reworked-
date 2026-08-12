@@ -1,6 +1,13 @@
 #ifndef FS_H
 #define FS_H
 
+/*
+TanjaOS [Reworked] Project
+File: fs.h
+Created: MSK-Kernel
+Modified By: MSK-Kerenle (Note for contrybutors when you modifie this file put your github name here)
+*/
+
 #include <stdint.h>
 #include <stddef.h>
 

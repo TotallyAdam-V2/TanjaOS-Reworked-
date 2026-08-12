@@ -9,7 +9,7 @@ CMD_SRC = $(filter-out cmd/init.c, $(wildcard cmd/*.c))
 CMD_OBJ = $(CMD_SRC:.c=.o)
 CMD_NAMES = $(notdir $(basename $(CMD_SRC)))
 
-KERNEL_OBJ = kernel/kernel.o kernel/game.o
+KERNEL_OBJ = kernel/kernel.o kernel/game.o kernel/log.o kernel/elib.o kernel/panic.o
 
 all: arch/x86/boot/tanja-base
 
@@ -55,6 +55,17 @@ cmd/init.o: cmd/init.c
 	@echo "[CC] cmd/init.c"
 	$(CC) $(CFLAGS) -o cmd/init.o cmd/init.c
 
+kernel/log.o: kernel/log.c
+	@echo "[CC] kernel/log.c"
+	$(CC) $(CFLAGS) -o kernel/log.o kernel/log.c
+
+kernel/elib.o: kernel/elib.o
+	@echo "[CC] kernel/elib.c"
+	$(CC) $(CFLAGS) -o kernel/elib.o kernel/elib.c
+
+kernel/panic.o: kernel/panic.o
+	@echo "[CC] kernel/panic.c"
+	$(CC) $(CFLAGS) -o kernel/panic.o kernel/panic.c
 
 arch/x86/boot/boot.o: arch/x86/boot/boot.asm | arch/x86/boot
 	@echo "[ASM] boot.asm"

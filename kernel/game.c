@@ -1,5 +1,12 @@
 #include <stdint.h>
 
+/*
+TanjaOS [Reworked] Project
+File: game.c
+Created: MSK-Kernel
+Modified By: MSK-Kernel (Note for contrybutors when you modifie this file put your github name here)
+*/
+
 extern int key_available(void);
 extern uint8_t inb(uint16_t port);
 extern int get_key(void);

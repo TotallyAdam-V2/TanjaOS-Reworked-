@@ -1,6 +1,16 @@
+/*
+TanjaOS [Reworked] Project
+File: kernel.c
+Created: MSK-Kernel
+Modified By: TotallyAdam-V2
+*/
+
 #include <stdint.h>
 #include <stddef.h>
 #include "../include/fs.h"
+#include "log.h"
+#include "elib.h"
+#include "panic.h"
 
 // ============================================================
 // VGA CONSTANTS
@@ -18,7 +28,6 @@ int cursor = 0;
 // ============================================================
 
 uint32_t boot_time_ms = 0;
-
 uint32_t boot_ticks = 0;
 
 typedef struct Command {
@@ -37,11 +46,11 @@ int cmd_pool_index = 0;
 
 int caps_lock = 0;
 
-#define KEY_UP     0x80
-#define KEY_DOWN   0x81
-#define KEY_LEFT   0x82
-#define KEY_RIGHT  0x83
-#define KEY_ENTER  0x84
+#define KEY_UP        0x80
+#define KEY_DOWN      0x81
+#define KEY_LEFT      0x82
+#define KEY_RIGHT     0x83
+#define KEY_ENTER     0x84
 #define KEY_BACKSPACE 0x85
 
 // ============================================================
@@ -73,11 +82,8 @@ void outb(uint16_t port, uint8_t val) {
 
 void timer_init()
 {
-    // PIT channel 0, rate generator mode
     outb(0x43, 0x34);
-
     uint16_t divisor = 1193180 / 1000; // ~1ms ticks
-
     outb(0x40, divisor & 0xFF);
     outb(0x40, (divisor >> 8) & 0xFF);
 }
@@ -90,7 +96,6 @@ void timer_delay_ms(uint32_t ms)
         {
             asm volatile("nop");
         }
-
         boot_time_ms++;
     }
 }
@@ -110,14 +115,12 @@ void sync_cursor() {
     if (cursor < 0) cursor = 0;
     if (cursor > max) cursor = max;
 
-    // 1. Configure Cursor Shape to a Solid Block
-    outb(0x3D4, 0x0A);                   // Select Cursor Start Register
-    outb(0x3D5, (inb(0x3D5) & 0xC0) | 0); // Start at scanline 0 (Top)
+    outb(0x3D4, 0x0A);                     
+    outb(0x3D5, (inb(0x3D5) & 0xC0) | 0);  
     
-    outb(0x3D4, 0x0B);                   // Select Cursor End Register
-    outb(0x3D5, (inb(0x3D5) & 0xE0) | 15);// End at scanline 15 (Bottom)
+    outb(0x3D4, 0x0B);                     
+    outb(0x3D5, (inb(0x3D5) & 0xE0) | 15); 
 
-    // 2. Update Cursor Position
     outb(0x3D4, 0x0F);
     outb(0x3D5, (uint8_t)(cursor & 0xFF));
     outb(0x3D4, 0x0E);
@@ -132,7 +135,6 @@ void timer_tick()
 void timer_handler()
 {
     boot_ticks++;
-
     outb(0x20, 0x20); // send EOI
 }
 
@@ -214,23 +216,7 @@ void print_dec(uint32_t n) {
 
 void boot_log(const char* msg)
 {
-    print("[ ");
-
-    print_dec(boot_time_ms / 1000);
-
-    print(".");
-
-    uint32_t ms = boot_time_ms % 1000;
-
-    if (ms < 100)
-        putc('0');
-    if (ms < 10)
-        putc('0');
-
-    print_dec(ms);
-
-    print(" ] ");
-
+    print("[ OK ] ");
     print(msg);
     print("\n");
 }
@@ -341,7 +327,6 @@ void read_line(char* buffer, int max_len) {
     int prompt_start = cursor;
 
     while (1) {
-
         int key = get_key();
 
         if (key == '\n' || key == KEY_ENTER) {
@@ -350,17 +335,13 @@ void read_line(char* buffer, int max_len) {
         }
 
         if (key == 8 || key == KEY_BACKSPACE) {
-
             if (pos > 0) {
-
                 for (int i = pos - 1; i < len - 1; i++)
                     line[i] = line[i + 1];
 
                 len--;
                 pos--;
-
                 line[len] = 0;
-
                 cursor = prompt_start;
 
                 for (int i = 0; i < len; i++) {
@@ -379,54 +360,39 @@ void read_line(char* buffer, int max_len) {
                 cursor = prompt_start + pos;
                 sync_cursor();
             }
-
             continue;
         }
 
-
         if (key == KEY_LEFT) {
-
             if (pos > 0) {
                 pos--;
                 cursor = prompt_start + pos;
                 sync_cursor();
             }
-
             continue;
         }
 
-
         if (key == KEY_RIGHT) {
-
             if (pos < len) {
                 pos++;
                 cursor = prompt_start + pos;
                 sync_cursor();
             }
-
             continue;
         }
-
 
         if (key == KEY_UP || key == KEY_DOWN)
             continue;
 
-
         if (key >= 32 && key <= 126) {
-
             if (len < INPUT_BUFFER_SIZE - 1) {
-
                 for (int i = len; i > pos; i--)
                     line[i] = line[i - 1];
 
                 line[pos] = key;
-
                 len++;
                 pos++;
-
                 line[len] = 0;
-
-
                 cursor = prompt_start;
 
                 for (int i = 0; i < len; i++) {
@@ -450,12 +416,9 @@ void read_line(char* buffer, int max_len) {
         }
     }
 
-
     int copy_len = len;
-
     if (copy_len >= max_len)
         copy_len = max_len - 1;
-
 
     for (int i = 0; i < copy_len; i++)
         buffer[i] = line[i];
@@ -468,12 +431,12 @@ void read_line(char* buffer, int max_len) {
 // ============================================================
 
 void register_cmd(const char* name, void (*func)(char* args)) {
-
-    if (cmd_pool_index >= CMD_POOL_SIZE)
+    if (cmd_pool_index >= CMD_POOL_SIZE) {
+        LOG_WARN("Command pool limit reached when registering: %s", name);
         return;
+    }
 
     Command* cmd = &cmd_pool[cmd_pool_index++];
-
     int i = 0;
     while (name[i] && i < 31) {
         cmd->name[i] = name[i];
@@ -484,25 +447,21 @@ void register_cmd(const char* name, void (*func)(char* args)) {
     cmd->func = func;
     cmd->next = 0;
 
-
     if (cmd_table == 0) {
         cmd_table = cmd;
     } else {
-
         Command* current = cmd_table;
-
         while (current->next)
             current = current->next;
-
         current->next = cmd;
     }
 
     cmd_count++;
+    LOG_DEBUG("Registered command: %s (Total: %d)", name, cmd_count);
 }
 
 int cmd_exists(const char* name) {
     if (!name || !*name) return 0;
-
     Command* cmd = cmd_table;
     while (cmd) {
         if (streq(cmd->name, name)) return 1;
@@ -513,7 +472,6 @@ int cmd_exists(const char* name) {
 
 void list_commands(void) {
     print("\nAvailable commands:\n\n");
-
     Command* cmd = cmd_table;
     int col = 0;
 
@@ -522,7 +480,6 @@ void list_commands(void) {
         while (cmd->name[len])
             len++;
 
-        // Wrap to next line if this command won't fit
         if (col + len + 3 >= VGA_WIDTH) {
             print("\n");
             col = 0;
@@ -530,9 +487,7 @@ void list_commands(void) {
 
         print(cmd->name);
         print(" ");
-
         col += len + 3;
-
         cmd = cmd->next;
     }
 
@@ -555,96 +510,144 @@ void execute_command(const char* cmd_line) {
     }
 
     cmd_name[i] = 0;
-
     const char* args = cmd_line + i;
 
     while (*args == ' ')
         args++;
 
+    LOG_INFO("Executing command -> Name: %s | Args: %s", cmd_name, args);
+
     Command* cmd = cmd_table;
-
     while (cmd) {
-
-        const char* a = cmd->name;
-        const char* b = cmd_name;
-
-        int match = 1;
-
-        while (*a && *b) {
-            if (*a != *b) {
-                match = 0;
-                break;
-            }
-
-            a++;
-            b++;
-        }
-
-        if (match && *a == 0 && *b == 0) {
+        if (streq(cmd->name, cmd_name)) {
             cmd->func((char*)args);
             return;
         }
-
         cmd = cmd->next;
     }
 
+    LOG_WARN("Command execution failed: '%s' not found", cmd_name);
     print("error: Command not found: ");
     print(cmd_name);
     print("\n");
 }
 
 // ============================================================
-// SHELL
+// KERNEL CORE INITIALIZATION SUB-ROUTINES (core_<name>)
+// ============================================================
+
+void core_hardware_init(void) {
+    LOG_INFO("Initializing base hardware systems");
+    underline_cursor();
+    clear_screen();
+    
+    print("----------------------------------------\n");
+    print("       TanjaOS [v2.0 Reworked]          \n");
+    print("       Core Subsystem Initialization    \n");
+    print("----------------------------------------\n");
+
+    timer_init();
+    boot_log("Hardware timer configured successfully");
+    LOG_INFO("PIT timer initialized at 1000Hz frequency");
+    timer_delay_ms(30);
+}
+
+void core_subsystems_init(void) {
+    LOG_INFO("Mounting core operating system subsystems");
+    
+    boot_log("Initializing filesystem module");
+    fs_init();
+    LOG_INFO("Filesystem mounted and verified");
+    timer_delay_ms(30);
+
+    boot_log("Initializing Serial Logging System");
+    log_init();
+    LOG_INFO("Serial communication interface online");
+    timer_delay_ms(30);
+}
+
+// ============================================================
+// SHELL & WIZARD
 // ============================================================
 
 void setup_wizard() {
-    print("===== TanjaOS Setup =====\n");
-    print("\n");
-    print("Create a login: "); read_line(config.username, MAX_USERNAME);
-    print("Create a password: "); read_line(config.password, MAX_PASSWORD);
-    print("Set a hostname: "); read_line(config.hostname, MAX_HOSTNAME);
-    config.is_setup = 1; clear_screen();
+    LOG_INFO("Launching user setup wizard interface");
+    print("========================================\n");
+    print("       TanjaOS Initial Setup Wizard     \n");
+    print("========================================\n\n");
+    
+    print(" [Account] Username : "); read_line(config.username, MAX_USERNAME);
+    print(" [Security] Password: "); read_line(config.password, MAX_PASSWORD);
+    print(" [Network] Hostname : "); read_line(config.hostname, MAX_HOSTNAME);
+    
+    config.is_setup = 1; 
+    LOG_INFO("Setup completed successfully for user: %s at host: %s", config.username, config.hostname);
+    clear_screen();
 }
 
 void login_prompt() {
     char u[MAX_USERNAME], p[MAX_PASSWORD];
     while (1) {
+        print("----------------------------------------\n");
+        print("             System Login               \n");
+        print("----------------------------------------\n");
         print(config.hostname); print(" login: "); read_line(u, MAX_USERNAME);
         print("Password: "); read_line(p, MAX_PASSWORD);
-        if (streq(u, config.username) && streq(p, config.password)) { print("\n"); return; }
-        print("Login incorrect\n\n");
+        if (streq(u, config.username) && streq(p, config.password)) { 
+            LOG_INFO("User '%s' authenticated successfully", u);
+            print("\n"); 
+            return; 
+        }
+        LOG_WARN("Failed authentication attempt for username: %s", u);
+        print("Authentication failed. Try again.\n\n");
     }
 }
 
-void cmd_exit(char* args) { (void)args; shell_exit_flag = 1; }
+void cmd_exit(char* args) { 
+    (void)args; 
+    LOG_INFO("Shell exit sequence invoked");
+    shell_exit_flag = 1; 
+}
+
 void cmd_hostname(char* args) {
     if (args && args[0]) {
         int i = 0;
-        while (i < MAX_HOSTNAME-1 && args[i] && args[i] != ' ') { config.hostname[i] = args[i]; i++; }
-        config.hostname[i] = 0; print("Hostname updated\n");
-    } else { print(config.hostname); print("\n"); }
+        while (i < MAX_HOSTNAME-1 && args[i] && args[i] != ' ') { 
+            config.hostname[i] = args[i]; 
+            i++; 
+        }
+        config.hostname[i] = 0; 
+        LOG_INFO("Hostname modified dynamically to: %s", config.hostname);
+        print("Hostname updated\n");
+    } else { 
+        print(config.hostname); 
+        print("\n"); 
+    }
 }
 
 void print_prompt_path() {
     char cwd[256];
     fs_get_current_path(cwd);
     if (cwd[0] == '/' && cwd[1] == 0) {
-        // at home ("/")
         print("~");
     } else {
-        // e.g. cwd="/folder/project" -> "~/folder/project"
         print("~");
         print(cwd);
     }
 }
 
 void shell() {
-    shell_exit_flag = 0; char buf[4096];
+    shell_exit_flag = 0; 
+    char buf[4096];
     while (1) {
-        print(config.username); print("@"); print(config.hostname); print(":");
+        print(config.username);
+        print("@");
+        print(config.hostname);
+        print(":");
         print_prompt_path();
         print("$ ");
-        read_line(buf, 4096); clean(buf);
+        read_line(buf, 4096); 
+        clean(buf);
         if (buf[0]) execute_command(buf);
         if (shell_exit_flag) { clear_screen(); break; }
     }
@@ -653,59 +656,55 @@ void shell() {
 extern void init_cmds(void);
 
 void kernel_main()
-{
-    underline_cursor();
-    clear_screen();
+{  
+    core_hardware_init();
+    core_subsystems_init();
 
-    timer_init();
-
-    boot_log("Kernel starting");
-
-    timer_delay_ms(50);
-
-    boot_log("Initializing filesystem");
-    fs_init();
-
-    timer_delay_ms(50);
-
-    boot_log("Loading commands");
+    LOG_INFO("Registering internal command structures");
+    boot_log("Loading command extensions");
     init_cmds();
+    timer_delay_ms(30);
 
-    timer_delay_ms(50);
-
-    boot_log("Checking command table");
+    boot_log("Validating command table metrics");
+    LOG_DEBUG("Total commands discovered: %d", cmd_count);
 
     if (cmd_count == 0)
     {
+        LOG_FATAL("Critical kernel panic: Command registry is empty (cmd_count == 0)");
         print("panic: due to: Unable to load commands\n");
         print("command count=0\n");
         print("Please provide commands in cmd\n");
         print("panic: due to: Unable to load commands\n");
+        print("System Now has halted using Emergacy Halt\n");
+
+        PANIC("Unable to load system commands! Registry verification failed.");
 
         while (1);
     }
 
     register_cmd("exit", cmd_exit);
     register_cmd("hostname", cmd_hostname);
+    timer_delay_ms(30);
 
-    timer_delay_ms(50);
-
-    boot_log("Starting setup");
+    boot_log("Preparing initialization state");
+    LOG_INFO("Transitioning to interactive configuration wizard");
 
     if (!config.is_setup)
         print("\n");
-	setup_wizard();
+    setup_wizard();
 
-    timer_delay_ms(50);
-    boot_log("Starting shell");
+    timer_delay_ms(30);
+    boot_log("Launching interactive shell environment");
     print("\n");
 
     while (1)
     {
-        print("The TanjaOS Project\n\n");
+        LOG_INFO("Shell Session Context Active");
+        print("========================================\n");
+        print("    TanjaOS Active Interactive Shell    \n");
+        print("========================================\n\n");
 
         login_prompt();
-
         shell();
     }
 }
