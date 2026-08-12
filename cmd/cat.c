@@ -1,5 +1,9 @@
 #include "cmd.h"
 
+/*
+i am too lazy to put that who made it for this folder :sob: - TotallyAdam-V2
+*/
+
 void cmd_cat(char* args) {
     extern void print(const char* s);
     extern void putc(char c);

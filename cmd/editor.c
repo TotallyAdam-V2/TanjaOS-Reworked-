@@ -51,7 +51,7 @@ static void draw_editor(char *text,int pos)
 {
     clear_screen();
 
-    print("TanjaOS Editor\n");
+    print("TanjaOS [Reworked] Editor\n");
     print("Ctrl+X = Save & Exit\n");
     print("---------------------\n");
 
