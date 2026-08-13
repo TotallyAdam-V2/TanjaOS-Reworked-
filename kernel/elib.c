@@ -1,21 +1,22 @@
-/*
-eLib Project
-Created by: TotallyAdam-V2
-Curently Used for: TanjaOS [Reworked]
-*/
-
 #include <stddef.h>
 #include "elib.h"
 #include "log.h"
 
-void cpu_hlt(void) {
-    // Disable interrupts and halt the CPU indefinitely
-    __asm__ volatile (
-        "cli\n\t"     // Clear interrupt flag (disable interrupts)
-        "1:\n\t"     // Local label 1
-        "hlt\n\t"    // Halt the CPU
-        "jmp 1b\n\t" // Jump back to label 1 just in case an NMI wakes it
-    );
+void cpu_hlt(int code) {
+    LOG_WARN("TanjaOS Initialized Low-CPU Action");
+    LOG_DEBUG("Verifying if the operation is Authorized");
+    
+    if (code == AUTHCODE) {
+        LOG_INFO("Halting The CPU");
+        __asm__ volatile (
+            "cli\n\t"    // Clear interrupt flag (disable interrupts)
+            "1:\n\t"    // Local label 1
+            "hlt\n\t"   // Halt the CPU
+            "jmp 1b\n\t" // Jump back to label 1 just in case an NMI wakes it
+        );
+    } else {
+        LOG_FATAL("Halt authorization failed."); // Added missing semicolon here!
+    }
 }
 
 void hlt_emergency(const char* message) {

@@ -69,9 +69,18 @@ void net_init(void) {
         return;
     }
 
+    // Issue a global device reset
     uint32_t ctrl = e1000_read_reg(E1000_REG_CTRL);
     e1000_write_reg(E1000_REG_CTRL, ctrl | (1 << 26));
+    
+    // Wait briefly for reset to complete
+    for (volatile int i = 0; i < 100000; i++);
 
+    // Re-read control and set Link Up (SLU)
+    ctrl = e1000_read_reg(E1000_REG_CTRL);
+    e1000_write_reg(E1000_REG_CTRL, ctrl | (1 << 6) | (1 << 26));
+
+    // Read MAC Address from Receive Address Low/High registers
     uint32_t ral = e1000_read_reg(E1000_REG_RAL);
     uint32_t rah = e1000_read_reg(E1000_REG_RAH);
 
@@ -82,6 +91,7 @@ void net_init(void) {
     net_mac[4] = (rah >> 0) & 0xFF;
     net_mac[5] = (rah >> 8) & 0xFF;
 
+    // Initialize Transmit Descriptors
     for (int i = 0; i < 8; i++) {
         tx_descs[i].addr = (uint64_t)(uint32_t)tx_buffers[i];
         tx_descs[i].length = 0;
@@ -98,6 +108,7 @@ void net_init(void) {
     e1000_write_reg(E1000_REG_TDH, 0);
     e1000_write_reg(E1000_REG_TDT, 0);
 
+    // Initialize Receive Descriptors
     for (int i = 0; i < 8; i++) {
         rx_descs[i].addr = (uint64_t)(uint32_t)rx_buffers[i];
         rx_descs[i].length = 0;
@@ -111,19 +122,30 @@ void net_init(void) {
     e1000_write_reg(E1000_REG_RDH, 0);
     e1000_write_reg(E1000_REG_RDT, 7);
 
+    // Disable interrupts or set IMS mask
     e1000_write_reg(E1000_REG_IMS, 0x1F6DC);
 
-    uint32_t rctl = e1000_read_reg(E1000_REG_RCTL);
-    rctl |= (1 << 1); 
-    rctl |= (1 << 3); 
-    rctl |= (1 << 4); 
-    rctl |= (1 << 2); 
+    // Configure Receive Control (RCTL):
+    // Bit 1: Receiver Enable (RE)
+    // Bit 2: Store Bad Packets (SBP) -> set to 0 or 1 depending on preference, usually 0
+    // Bit 3: Broadcast Accept Mode (BAM) -> crucial for receiving broadcast/gateway traffic
+    // Bit 4-5: Descriptor Minimum Threshold / Buffer size (Clear for 2048 bytes or set BSIZE)
+    // Bit 15: Loopback Mode
+    // Bit 26: Strip CRC (SECR) -> 1 to strip ethernet checksum automatically
+    uint32_t rctl = (1 << 1)   // Receiver Enable
+                 | (1 << 2)   // Multicast Promiscuous (optional, helps catch traffic)
+                 | (1 << 3)   // Broadcast Accept Mode (BAM) - CRITICAL
+                 | (1 << 15)  // Unicast Promiscuous (UPE) - ensures we catch packets sent to our MAC
+                 | (1 << 26); // Strip Ethernet CRC
     e1000_write_reg(E1000_REG_RCTL, rctl);
 
-    uint32_t tctl = e1000_read_reg(E1000_REG_TCTL);
-    tctl |= (1 << 1); 
-    tctl |= (1 << 3); 
-    tctl |= (1 << 10);
+    // Configure Transmit Control (TCTL):
+    // Bit 1: Transmitter Enable (EN)
+    // Bit 3: Pad Short Packets (PSP)
+    // Bits 4-11: Collision Threshold
+    uint32_t tctl = (1 << 1)   // Transmit Enable
+                 | (1 << 3)   // Pad Short Packets
+                 | (1 << 10); // Collision Threshold
     e1000_write_reg(E1000_REG_TCTL, tctl);
 }
 
@@ -146,6 +168,7 @@ void net_send_packet(const uint8_t* data, uint16_t len) {
 int net_receive_packet(uint8_t* buffer, uint16_t max_len) {
     if (!e1000_mmio_base) return 0;
 
+    // Check if current descriptor has been written to by hardware (DD bit set)
     if (!(rx_descs[rx_cur].status & 0x01)) {
         return 0; 
     }
@@ -157,11 +180,16 @@ int net_receive_packet(uint8_t* buffer, uint16_t max_len) {
         buffer[i] = rx_buffers[rx_cur][i];
     }
 
-    rx_descs[rx_cur].status = 0;
-    uint32_t old_tail = e1000_read_reg(E1000_REG_RDT);
-    e1000_write_reg(E1000_REG_RDT, old_tail);
+    // Keep track of the descriptor index we just consumed
+    uint32_t old_rx_cur = rx_cur;
 
-    rx_cur = (rx_cur + 1) % 8;
+    // Reset descriptor status and advance our software ring pointer
+    rx_descs[rx_cur].status = 0;
+    rx_cur = (rx_cur + 1) % 8; // Assuming ring size of 8 descriptors
+
+    // CRITICAL: Tell the E1000 hardware that this descriptor buffer is free again
+    e1000_write_reg(E1000_REG_RDT, old_rx_cur);
+
     return len;
 }
 

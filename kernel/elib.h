@@ -1,13 +1,15 @@
 /*
 eLib Project
 Created by: TotallyAdam-V2
-Curently Used for: TanjaOS [Reworked]
+Currently Used for: TanjaOS [Reworked]
 */
 
 #ifndef ELIB_H
 #define ELIB_H
 
-void cpu_hlt(void);
+#define AUTHCODE 3113  // Define it as a clean macro constant
+
+void cpu_hlt(int code);
 void hlt_emergency(const char* message);
 
 #endif // ELIB_H

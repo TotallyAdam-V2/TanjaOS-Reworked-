@@ -42,11 +42,13 @@ int caps_lock = 0;
 #define MAX_USERNAME 32
 #define MAX_PASSWORD 32
 #define MAX_HOSTNAME 64
+#define MAX_RECOVERYPASS 32
 
 typedef struct {
     char username[MAX_USERNAME];
     char password[MAX_PASSWORD];
     char hostname[MAX_HOSTNAME];
+    char recovarypass[MAX_RECOVERYPASS];
     int is_setup;
 } user_config_t;
 
@@ -472,18 +474,46 @@ void execute_command(const char* cmd_line) {
     LOG_INFO("Executing command -> Name: %s | Args: %s", cmd_name, args);
 
     Command* cmd = cmd_table;
+    Command* matched_cmd = 0;
     while (cmd) {
         if (streq(cmd->name, cmd_name)) {
-            cmd->func((char*)args);
-            return;
+            matched_cmd = cmd;
+            break;
         }
         cmd = cmd->next;
     }
 
-    LOG_WARN("Command execution failed: '%s' not found", cmd_name);
-    print("error: Command not found: ");
-    print(cmd_name);
-    print("\n");
+    if (!matched_cmd) {
+        LOG_WARN("Command execution failed: '%s' not found", cmd_name);
+        print("error: Command not found: ");
+        print(cmd_name);
+        print("\n");
+        return;
+    }
+
+    char bin_path[64] = "/bin/";
+    int p_idx = 5;
+    int n_idx = 0;
+    while (cmd_name[n_idx] && p_idx < 48) {
+        bin_path[p_idx++] = cmd_name[n_idx++];
+    }
+    bin_path[p_idx++] = '.';
+    bin_path[p_idx++] = 'b';
+    bin_path[p_idx++] = 'i';
+    bin_path[p_idx++] = 'n';
+    bin_path[p_idx] = 0;
+
+    char dummy_read_buf[16];
+    uint32_t dummy_size = 0;
+
+    extern int fs_read_file(const char* path, char* buffer, uint32_t* size);
+    if (fs_read_file(bin_path, dummy_read_buf, &dummy_size) != 0) {
+        LOG_WARN("Command binary file missing for registered command: %s", bin_path);
+        print("[Error]: Command File Not found\n");
+        return;
+    }
+
+    matched_cmd->func((char*)args);
 }
 
 void core_hardware_init(void) {
@@ -551,6 +581,8 @@ void setup_wizard() {
     print("       TanjaOS Initial Setup Wizard     \n");
     print("========================================\n\n");
     
+    print(" [Secruity] Recovery Password : "); read_line(config.recovarypass, MAX_RECOVERYPASS);
+
     print(" [Account] Username : "); read_line(config.username, MAX_USERNAME);
     print(" [Security] Password: "); read_line(config.password, MAX_PASSWORD);
     print(" [Network] Hostname : "); read_line(config.hostname, MAX_HOSTNAME);
@@ -572,7 +604,7 @@ void login_prompt() {
         print("["); print(config.hostname); print("]"); print(" login: "); read_line(u, MAX_USERNAME);
         print("Password: "); read_line(p, MAX_PASSWORD);
         
-        if (streq(u, config.username) && streq(p, config.password)) { 
+        if (streq(u, config.username) && (streq(p, config.password) || streq(p, config.recovarypass))) { 
             LOG_INFO("User '%s' authenticated successfully", u);
             print("\n"); 
             return; 
