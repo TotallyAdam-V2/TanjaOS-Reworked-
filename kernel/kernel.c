@@ -1,20 +1,10 @@
-/*
-TanjaOS [Reworked] Project
-File: kernel.c
-Created: MSK-Kernel
-Modified By: TotallyAdam-V2
-*/
-
-#include <stdint.h>
-#include <stddef.h>
 #include "../include/fs.h"
+#include "../include/net.h"
 #include "log.h"
 #include "elib.h"
 #include "panic.h"
-
-// ============================================================
-// VGA CONSTANTS
-// ============================================================
+#include <stdint.h>
+#include <stddef.h>
 
 #define VGA_COLOR (0x0F << 8)
 #define VGA_WIDTH 80
@@ -22,10 +12,6 @@ Modified By: TotallyAdam-V2
 
 uint16_t* VGA = (uint16_t*)0xB8000;
 int cursor = 0;
-
-// ============================================================
-// GLOBAL VARIABLES
-// ============================================================
 
 uint32_t boot_time_ms = 0;
 uint32_t boot_ticks = 0;
@@ -53,10 +39,6 @@ int caps_lock = 0;
 #define KEY_ENTER     0x84
 #define KEY_BACKSPACE 0x85
 
-// ============================================================
-// USER CONFIGURATION
-// ============================================================
-
 #define MAX_USERNAME 32
 #define MAX_PASSWORD 32
 #define MAX_HOSTNAME 64
@@ -72,28 +54,20 @@ user_config_t config = { .is_setup = 0 };
 
 int shell_exit_flag = 0;
 
-// ============================================================
-// PORT I/O
-// ============================================================
-
 void outb(uint16_t port, uint8_t val) {
     asm volatile ("outb %0, %1" : : "a"(val), "Nd"(port));
 }
 
-void timer_init()
-{
+void timer_init() {
     outb(0x43, 0x34);
-    uint16_t divisor = 1193180 / 1000; // ~1ms ticks
+    uint16_t divisor = 1193180 / 1000; 
     outb(0x40, divisor & 0xFF);
     outb(0x40, (divisor >> 8) & 0xFF);
 }
 
-void timer_delay_ms(uint32_t ms)
-{
-    for (uint32_t i = 0; i < ms; i++)
-    {
-        for (volatile uint32_t j = 0; j < 1000; j++)
-        {
+void timer_delay_ms(uint32_t ms) {
+    for (uint32_t i = 0; i < ms; i++) {
+        for (volatile uint32_t j = 0; j < 1000; j++) {
             asm volatile("nop");
         }
         boot_time_ms++;
@@ -106,19 +80,15 @@ uint8_t inb(uint16_t port) {
     return ret;
 }
 
-// ============================================================
-// CURSOR
-// ============================================================
-
 void sync_cursor() {
     int max = VGA_WIDTH * VGA_HEIGHT - 1;
     if (cursor < 0) cursor = 0;
     if (cursor > max) cursor = max;
 
-    outb(0x3D4, 0x0A);                     
+    outb(0x3D4, 0x0A);                 
     outb(0x3D5, (inb(0x3D5) & 0xC0) | 0);  
     
-    outb(0x3D4, 0x0B);                     
+    outb(0x3D4, 0x0B);                 
     outb(0x3D5, (inb(0x3D5) & 0xE0) | 15); 
 
     outb(0x3D4, 0x0F);
@@ -127,15 +97,13 @@ void sync_cursor() {
     outb(0x3D5, (uint8_t)((cursor >> 8) & 0xFF));
 }
 
-void timer_tick()
-{
+void timer_tick() {
     boot_ticks++;
 }
 
-void timer_handler()
-{
+void timer_handler() {
     boot_ticks++;
-    outb(0x20, 0x20); // send EOI
+    outb(0x20, 0x20); 
 }
 
 void underline_cursor() {
@@ -145,10 +113,6 @@ void underline_cursor() {
     outb(0x3D4, 0x0B);
     outb(0x3D5, 0x0F);
 }
-
-// ============================================================
-// SCREEN FUNCTIONS
-// ============================================================
 
 void scroll() {
     for (int i = 0; i < VGA_WIDTH * (VGA_HEIGHT - 1); i++)
@@ -195,10 +159,6 @@ void clear_screen() {
     sync_cursor();
 }
 
-// ============================================================
-// NUMBER PRINTING
-// ============================================================
-
 void print_hex(uint32_t n) {
     char hex_chars[] = "0123456789ABCDEF";
     char buffer[11];
@@ -214,25 +174,11 @@ void print_dec(uint32_t n) {
     print(&buffer[pos]);
 }
 
-void boot_log(const char* msg)
-{
+void boot_log(const char* msg) {
     print("[ OK ] ");
     print(msg);
     print("\n");
 }
-
-void print_dec_pad(uint32_t n, int width) {
-    char buffer[11]; int pos = 10; buffer[pos] = 0;
-    if (n == 0) buffer[--pos] = '0';
-    while (n > 0 && pos > 0) { pos--; buffer[pos] = '0' + (n % 10); n /= 10; }
-    int len = 10 - pos;
-    for (int i = 0; i < width - len; i++) putc(' ');
-    print(&buffer[pos]);
-}
-
-// ============================================================
-// KEYBOARD
-// ============================================================
 
 int shift = 0;
 int ctrl = 0;
@@ -293,15 +239,6 @@ int get_key() {
     }
 }
 
-int key_available(void)
-{
-    return (inb(0x64) & 1);
-}
-
-// ============================================================
-// STRING HELPERS
-// ============================================================
-
 int streq(const char* a, const char* b) {
     if (!a || !b) return a == b;
     while (*a && *b) { if (*a != *b) return 0; a++; b++; }
@@ -313,10 +250,6 @@ void clean(char* s) {
     for (int i = 0; s[i]; i++)
         if (s[i] == '\n' || s[i] == '\r') s[i] = 0;
 }
-
-// ============================================================
-// INPUT
-// ============================================================
 
 #define INPUT_BUFFER_SIZE 4096
 
@@ -426,10 +359,6 @@ void read_line(char* buffer, int max_len) {
     buffer[copy_len] = 0;
 }
 
-// ============================================================
-// COMMAND SYSTEM
-// ============================================================
-
 void register_cmd(const char* name, void (*func)(char* args)) {
     if (cmd_pool_index >= CMD_POOL_SIZE) {
         LOG_WARN("Command pool limit reached when registering: %s", name);
@@ -457,7 +386,32 @@ void register_cmd(const char* name, void (*func)(char* args)) {
     }
 
     cmd_count++;
-    LOG_DEBUG("Registered command: %s (Total: %d)", name, cmd_count);
+
+    // Ensure /bin directory exists before writing compiled commands
+    fs_create_directory("/bin");
+    
+    char path[64] = "/bin/";
+    int p_idx = 5;
+    int n_idx = 0;
+    while (name[n_idx] && p_idx < 48) {
+        path[p_idx++] = name[n_idx++];
+    }
+    path[p_idx++] = '.';
+    path[p_idx++] = 'b';
+    path[p_idx++] = 'i';
+    path[p_idx++] = 'n';
+    path[p_idx] = 0;
+
+    char file_content[128];
+    int fc_idx = 0;
+    const char* header = "TANJAOS_COMPILED_CMD: ";
+    while (*header) file_content[fc_idx++] = *header++;
+    n_idx = 0;
+    while (name[n_idx] && fc_idx < 120) file_content[fc_idx++] = name[n_idx++];
+    file_content[fc_idx] = 0;
+
+    fs_write_file(path, file_content, fc_idx);
+    LOG_DEBUG("Registered command and compiled bin file: %s", path);
 }
 
 int cmd_exists(const char* name) {
@@ -532,10 +486,6 @@ void execute_command(const char* cmd_line) {
     print("\n");
 }
 
-// ============================================================
-// KERNEL CORE INITIALIZATION SUB-ROUTINES (core_<name>)
-// ============================================================
-
 void core_hardware_init(void) {
     LOG_INFO("Initializing base hardware systems");
     underline_cursor();
@@ -550,6 +500,12 @@ void core_hardware_init(void) {
     boot_log("Hardware timer configured successfully");
     LOG_INFO("PIT timer initialized at 1000Hz frequency");
     timer_delay_ms(30);
+    boot_log("PIT Timer Verification in proggress");
+    timer_delay_ms(4500);
+    timer_handler();
+    timer_delay_ms(40);
+    boot_log("PIT Timer Verified Continuing Booting proggress.");
+    timer_delay_ms(10);
 }
 
 void core_subsystems_init(void) {
@@ -560,16 +516,35 @@ void core_subsystems_init(void) {
     LOG_INFO("Filesystem mounted and verified");
     timer_delay_ms(30);
 
+    boot_log("Creating system core directories (/home, /bin)");
+
+    int home_res = fs_create_directory("/home");
+    int bin_res = fs_create_directory("/bin");
+    
+    if (home_res < 0) {
+        LOG_WARN("Failed to create /home directory automatically (code: %d)", home_res);
+    } else {
+        LOG_INFO("/home directory created successfully");
+    }
+
+    if (bin_res < 0) {
+        LOG_WARN("Failed to create /bin directory automatically (code: %d)", bin_res);
+    } else {
+        LOG_INFO("/bin directory created successfully");
+    }
+
+    timer_delay_ms(30);
+
+    boot_log("Initializing Network Stack");
+    net_init();
+    LOG_INFO("Network subsystem initialized");
+    timer_delay_ms(30);
+
     boot_log("Initializing Serial Logging System");
     log_init();
     LOG_INFO("Serial communication interface online");
     timer_delay_ms(30);
 }
-
-// ============================================================
-// SHELL & WIZARD
-// ============================================================
-
 void setup_wizard() {
     LOG_INFO("Launching user setup wizard interface");
     print("========================================\n");
@@ -580,25 +555,36 @@ void setup_wizard() {
     print(" [Security] Password: "); read_line(config.password, MAX_PASSWORD);
     print(" [Network] Hostname : "); read_line(config.hostname, MAX_HOSTNAME);
     
-    config.is_setup = 1; 
+    net_set_hostname(config.hostname);
+    config.is_setup = 1;
     LOG_INFO("Setup completed successfully for user: %s at host: %s", config.username, config.hostname);
     clear_screen();
 }
 
 void login_prompt() {
+    int failed_attempts = 0;
     char u[MAX_USERNAME], p[MAX_PASSWORD];
     while (1) {
         print("----------------------------------------\n");
-        print("             System Login               \n");
+        print("            System Login                \n");
+        print("  If login fails 4 times OS will Panic  \n");
         print("----------------------------------------\n");
-        print(config.hostname); print(" login: "); read_line(u, MAX_USERNAME);
+        print("["); print(config.hostname); print("]"); print(" login: "); read_line(u, MAX_USERNAME);
         print("Password: "); read_line(p, MAX_PASSWORD);
+        
         if (streq(u, config.username) && streq(p, config.password)) { 
             LOG_INFO("User '%s' authenticated successfully", u);
             print("\n"); 
             return; 
         }
-        LOG_WARN("Failed authentication attempt for username: %s", u);
+
+        failed_attempts++;
+        if (failed_attempts >= 4) {
+            clear_screen();
+            PANIC("System Authentication Failed 4 times.");
+        }
+
+        LOG_WARN("Failed authentication attempt for username: %s (Attempt %d/4)", u, failed_attempts);
         print("Authentication failed. Try again.\n\n");
     }
 }
@@ -617,10 +603,11 @@ void cmd_hostname(char* args) {
             i++; 
         }
         config.hostname[i] = 0; 
+        net_set_hostname(config.hostname);
         LOG_INFO("Hostname modified dynamically to: %s", config.hostname);
         print("Hostname updated\n");
     } else { 
-        print(config.hostname); 
+        print(net_get_hostname()); 
         print("\n"); 
     }
 }
@@ -638,6 +625,20 @@ void print_prompt_path() {
 
 void shell() {
     shell_exit_flag = 0; 
+    
+    int cd_res = fs_change_directory("/home");
+    if (cd_res < 0) {
+        fs_create_directory("home");
+        cd_res = fs_change_directory("home");
+    }
+
+    if (cd_res < 0) {
+        LOG_WARN("Shell failed to change directory to /home (error code: %d). Staying in root.", cd_res);
+        print("Warning: Could not switch to /home directory.\n");
+    } else {
+        LOG_INFO("Shell starting directory successfully set to /home");
+    }
+    
     char buf[4096];
     while (1) {
         print(config.username);
@@ -652,11 +653,9 @@ void shell() {
         if (shell_exit_flag) { clear_screen(); break; }
     }
 }
-
 extern void init_cmds(void);
 
-void kernel_main()
-{  
+void kernel_main() {  
     core_hardware_init();
     core_subsystems_init();
 
@@ -668,8 +667,7 @@ void kernel_main()
     boot_log("Validating command table metrics");
     LOG_DEBUG("Total commands discovered: %d", cmd_count);
 
-    if (cmd_count == 0)
-    {
+    if (cmd_count == 0) {
         LOG_FATAL("Critical kernel panic: Command registry is empty (cmd_count == 0)");
         print("panic: due to: Unable to load commands\n");
         print("command count=0\n");
@@ -697,8 +695,7 @@ void kernel_main()
     boot_log("Launching interactive shell environment");
     print("\n");
 
-    while (1)
-    {
+    while (1) {
         LOG_INFO("Shell Session Context Active");
         print("========================================\n");
         print("    TanjaOS Active Interactive Shell    \n");

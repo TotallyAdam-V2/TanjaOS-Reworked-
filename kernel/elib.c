@@ -1,3 +1,9 @@
+/*
+eLib Project
+Created by: TotallyAdam-V2
+Curently Used for: TanjaOS [Reworked]
+*/
+
 #include <stddef.h>
 #include "elib.h"
 #include "log.h"

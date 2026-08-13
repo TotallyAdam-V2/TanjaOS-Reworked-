@@ -9,7 +9,7 @@ CMD_SRC = $(filter-out cmd/init.c, $(wildcard cmd/*.c))
 CMD_OBJ = $(CMD_SRC:.c=.o)
 CMD_NAMES = $(notdir $(basename $(CMD_SRC)))
 
-KERNEL_OBJ = kernel/kernel.o kernel/game.o kernel/log.o kernel/elib.o kernel/panic.o
+KERNEL_OBJ = kernel/kernel.o kernel/game.o kernel/log.o kernel/elib.o kernel/panic.o kernel/networking.o
 
 all: arch/x86/boot/tanja-base
 
@@ -62,6 +62,10 @@ kernel/log.o: kernel/log.c
 kernel/elib.o: kernel/elib.o
 	@echo "[CC] kernel/elib.c"
 	$(CC) $(CFLAGS) -o kernel/elib.o kernel/elib.c
+
+kernel/networking.o: kernel/networking.o
+	@echo "[CC] kernel/networking.c"
+	$(CC) $(CFLAGS) -o kernel/networking.o kernel/networking.c
 
 kernel/panic.o: kernel/panic.o
 	@echo "[CC] kernel/panic.c"

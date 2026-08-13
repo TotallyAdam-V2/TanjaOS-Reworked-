@@ -1,6 +1,8 @@
 # TanjaOS [Reworked] Project
 **All rights remain to TotallyAdam-V2 And MSK-Kernel**
 
+For best TanjaOS [Reworked] Expirence please use this command to run it: qemu-system-i386 -kernel arch/x86/boot/tanja-base -net nic,model=e1000 -net user -serial stdio
+
 For commands, prebuilt C commands are located in cmd, otherwise you can create commands yourself and insert them into cmd.
 The Makefile will automatically detect your commands so you don't have to edit anything. Without commands, this will result in a kernel panic.
 For building, use 'make' to compile. Once compiling is finished, a bootable kernel image 'tanja-base' will be located at arch/x86/boot.
